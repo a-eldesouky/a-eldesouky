@@ -147,8 +147,8 @@ DesBot, my robotics side project.
     <img height="165" alt="GitHub stats for a-eldesouky" src="https://github-readme-stats.vercel.app/api?username=a-eldesouky&show_icons=true&hide_rank=true&count_private=false&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0">
   </picture>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/top-langs/?username=a-eldesouky&layout=compact&hide=jupyter%20notebook,makefile,cmake,html,common%20lisp,javascript,css,dockerfile&langs_count=4&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&border_color=2A2F35&border_radius=0">
-    <img height="165" alt="Most used languages for a-eldesouky" src="https://github-readme-stats.vercel.app/api/top-langs/?username=a-eldesouky&layout=compact&hide=jupyter%20notebook,makefile,cmake,html,common%20lisp,javascript,css,dockerfile&langs_count=4&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&border_color=C9CED2&border_radius=0">
+    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/top-langs/?username=a-eldesouky&layout=compact&hide=jupyter%20notebook%2Cmakefile%2Ccmake%2Chtml%2Ccommon%20lisp%2Cjavascript%2Ccss%2Cdockerfile&langs_count=4&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&border_color=2A2F35&border_radius=0">
+    <img height="165" alt="Most used languages for a-eldesouky" src="https://github-readme-stats.vercel.app/api/top-langs/?username=a-eldesouky&layout=compact&hide=jupyter%20notebook%2Cmakefile%2Ccmake%2Chtml%2Ccommon%20lisp%2Cjavascript%2Ccss%2Cdockerfile&langs_count=4&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&border_color=C9CED2&border_radius=0">
   </picture>
 </p>
 
