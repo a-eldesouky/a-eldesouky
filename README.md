@@ -8,9 +8,14 @@ I have 4+ years of engineering experience, 3 of them full-time in robotics. I am
 
 ### Side project
 
-DesBot, my robotics side project.
-
 <p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/desbot-dark.svg">
+    <img src="assets/desbot-light.svg" height="56" alt="DesBot logo">
+  </picture>
+  <br>
+  <sub>DesBot, my robotics side project.</sub>
+  <br><br>
   <a href="https://www.youtube.com/channel/UC3yJvzzU46iGv6HJiGdhlbQ"><img alt="DesBot on YouTube" src="https://img.shields.io/badge/YouTube-16191D?style=flat-square&logo=youtube&logoColor=2FB36E"></a>
   <a href="https://www.instagram.com/desbot0"><img alt="DesBot on Instagram" src="https://img.shields.io/badge/Instagram-16191D?style=flat-square&logo=instagram&logoColor=2FB36E"></a>
   <a href="https://www.facebook.com/people/DesBot/"><img alt="DesBot on Facebook" src="https://img.shields.io/badge/Facebook-16191D?style=flat-square&logo=facebook&logoColor=2FB36E"></a>

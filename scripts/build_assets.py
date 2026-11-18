@@ -33,7 +33,8 @@ NAME = "Abdelrahman Eldesouky"
 TITLE = "Senior Robotics Software Engineer"
 LINE = "Multi-robot autonomy and navigation on real robots"
 TAG = "ROS 2  /  C++  /  Nav2"
-CAPTION = "/map  /scan  /plan"
+# Every string the mono font must cover (subsetting only).
+CAPTION = "exploring  /  building the map r1 patrol r2 inspect r3 survey meeting up together"
 
 
 # ---------------------------------------------------------------- fonts
@@ -60,7 +61,7 @@ def font_css():
     faces = [
         ("PAlexandria", FONT_DIR / "Alexandria-Variable.ttf", NAME, 600),
         ("PPlexSans", FONT_DIR / "IBMPlexSans-Variable.ttf", TITLE + LINE, 400),
-        ("PPlexMono", FONT_DIR / "IBMPlexMono-SemiBold.ttf", TAG + CAPTION, None),
+        ("PPlexMono", FONT_DIR / "IBMPlexMono-SemiBold.ttf", TAG + CAPTION + "r123", None),
     ]
     out = []
     for fam, path, text, w in faces:
@@ -71,6 +72,13 @@ def font_css():
 
 # ---------------------------------------------------------------- scene
 # Local scene coordinates (0..460 x 0..250), translated into the banner.
+# One 24 s loop, all animations share it:
+#   0-9 s   explore: robots leave the dock; the map appears where they drive
+#   ~6-15 s jobs:    r1 patrols, r2 inspects a crate, r3 surveys a corner
+#   15-18 s meet:    robots park around the centre
+#   18-22 s build:   each robot places its share of the DesBot mark's dots
+#   22-24 s reset:   mark and map fade, robots return to the dock
+CYCLE = 24.0
 WALLS = [
     ((10, 10), (450, 10)), ((450, 10), (450, 240)), ((450, 240), (10, 240)), ((10, 240), (10, 10)),
     ((160, 10), (160, 140)),           # inner wall, top
@@ -81,86 +89,162 @@ for x, y, w, h in BOXES:
     WALLS += [((x, y), (x + w, y)), ((x + w, y), (x + w, y + h)),
               ((x + w, y + h), (x, y + h)), ((x, y + h), (x, y))]
 
-PATH_A = [(40, 200), (230, 200), (230, 88), (340, 88), (400, 160)]
-PATH_B = [(124, 40), (124, 96), (40, 96)]
+SPEED = 86.0  # px/s while exploring
+EXPLORE = [
+    [(34, 224), (150, 212), (240, 212), (240, 88), (190, 88), (190, 40)],
+    [(34, 200), (34, 36), (136, 36), (136, 100)],
+    [(60, 230), (282, 230), (282, 96), (330, 96), (430, 96), (430, 222), (330, 222)],
+]
+# After exploring: (time, point) waypoints for each robot's own job, the meeting and the return.
+LOGO_C, LOGO_S = (232, 128), 0.75
+PARK = [(170, 128), (292, 70), (292, 188)]
+AFTER = [
+    [(8.0, (190, 120)), (10.0, (190, 40)), (12.0, (190, 120)), (14.0, (190, 40)), (15.0, (190, 40)),
+     (17.0, PARK[0]), (22.6, PARK[0])],
+    [(6.5, (80, 106)), (14.5, (80, 106)), (15.5, (120, 160)), (16.5, (200, 160)), (17.6, PARK[1]),
+     (22.6, PARK[1])],
+    [(10.2, (330, 150)), (11.4, (389, 98)), (14.6, (389, 98)), (15.6, (310, 96)), (16.4, (292, 104)),
+     (17.6, PARK[2]), (22.6, PARK[2])],
+]
+JOBS = ["patrol", "inspect", "survey"]
 
 
-def rounded_path(pts, r=18):
-    d = [f"M{pts[0][0]} {pts[0][1]}"]
-    for i in range(1, len(pts) - 1):
-        (x0, y0), (x1, y1), (x2, y2) = pts[i - 1], pts[i], pts[i + 1]
-        l1, l2 = math.dist((x0, y0), (x1, y1)), math.dist((x1, y1), (x2, y2))
-        rr = min(r, l1 / 2, l2 / 2)
-        a = (x1 - (x1 - x0) / l1 * rr, y1 - (y1 - y0) / l1 * rr)
-        b = (x1 + (x2 - x1) / l2 * rr, y1 + (y2 - y1) / l2 * rr)
-        d.append(f"L{a[0]:.1f} {a[1]:.1f}Q{x1} {y1} {b[0]:.1f} {b[1]:.1f}")
-    d.append(f"L{pts[-1][0]} {pts[-1][1]}")
-    return "".join(d)
+def timeline(i):
+    pts = EXPLORE[i]
+    t, out = 0.0, [(0.0, pts[0])]
+    for a, b in zip(pts, pts[1:]):
+        t += math.dist(a, b) / SPEED
+        out.append((t, b))
+    explore_end = t
+    out += AFTER[i]
+    out.append((CYCLE, pts[0]))
+    return out, explore_end
 
 
-def ray_hit(o, ang, max_r=270):
-    dx, dy = math.cos(ang), math.sin(ang)
-    best = None
-    for (x1, y1), (x2, y2) in WALLS:
-        ex, ey = x2 - x1, y2 - y1
-        den = dx * ey - dy * ex
-        if abs(den) < 1e-9:
-            continue
-        t = ((x1 - o[0]) * ey - (y1 - o[1]) * ex) / den
-        u = ((x1 - o[0]) * dy - (y1 - o[1]) * dx) / den
-        if t > 0 and 0 <= u <= 1 and (best is None or t < best):
-            best = t
-    return best if best is not None and best < max_r else None
+def motion_attrs(tl):
+    """Polyline path plus keyPoints/keyTimes so the robot is at each waypoint on time."""
+    d = [f"M{tl[0][1][0]} {tl[0][1][1]}"]
+    cum = [0.0]
+    for (_, a), (_, b) in zip(tl, tl[1:]):
+        cum.append(cum[-1] + math.dist(a, b))
+        d.append(f"L{b[0]} {b[1]}")
+    total = cum[-1]
+    kp = ";".join(f"{c / total:.4f}" for c in cum)
+    kt = ";".join(f"{t / CYCLE:.4f}" for t, _ in tl)
+    return "".join(d), kp, kt
 
 
-def scan_points(o, step_deg=2.0):
+def map_points(spacing=6.0):
+    """Wall hits as a merged LiDAR map: one compact path of 2x2 squares."""
     rng = random.Random(7)
-    pts = []
-    a = 0.0
-    while a < 360:
-        t = ray_hit(o, math.radians(a))
-        if t is not None:
-            t += rng.gauss(0, 0.9)
-            pts.append((o[0] + t * math.cos(math.radians(a)), o[1] + t * math.sin(math.radians(a))))
-        a += step_deg
-    return pts
+    out = []
+    for (x1, y1), (x2, y2) in WALLS:
+        length = math.dist((x1, y1), (x2, y2))
+        for k in range(int(length // spacing) + 1):
+            t = k * spacing / length
+            x = x1 + (x2 - x1) * t + rng.gauss(0, 0.8)
+            y = y1 + (y2 - y1) * t + rng.gauss(0, 0.8)
+            out.append(f"M{x - 1:.0f} {y - 1:.0f}h2v2h-2z")
+    return "".join(out)
 
 
-def robot(x, y, heading_deg, stroke, fill):
-    return (f'<g transform="translate({x} {y}) rotate({heading_deg:.1f})">'
-            f'<rect x="-10" y="-7" width="20" height="14" fill="{fill}" stroke="{stroke}" stroke-width="1.6"/>'
-            f'<path d="M3 -3.5L8 0L3 3.5" fill="none" stroke="{stroke}" stroke-width="1.6"/></g>')
+# DesBot mark (200x200 source): (x, y, r, opacity). The last dot is the green core.
+MARK = (
+    [(52.79, y, 2.76, .65) for y in (19.49, 42.49, 65.5, 88.5, 111.5, 134.5, 157.51, 180.51)]
+    + [(x, y, 2.3, .685) for x, y in ((74.06, 12.3), (103.11, 22.94), (126.68, 42.78), (142.21, 69.52),
+                                      (147.67, 100), (142.21, 130.48), (126.68, 157.22), (103.11, 177.06),
+                                      (74.06, 187.7))]
+    + [(x, y, 2.76, .86) for x, y in ((70.61, 32.14), (93.04, 40.19), (111.44, 55.72), (123.52, 76.42),
+                                      (127.55, 100), (123.52, 123.58), (111.44, 144.28), (93.04, 159.81),
+                                      (70.61, 167.86))]
+    + [(x, y, 3.22, 1.0) for x, y in ((66.59, 54.57), (81.54, 60.03), (93.9, 70.38), (101.67, 84.19),
+                                      (104.54, 100), (101.67, 115.81), (93.9, 129.62), (81.54, 139.97),
+                                      (66.59, 145.43))]
+)
+
+
+def kt(*ts):
+    return ";".join(f"{t / CYCLE:.4f}" for t in ts)
+
+
+def logo_dots(c):
+    """Each robot carries the dots nearest to it from its parking spot into place."""
+    cx, cy = LOGO_C
+    placed = []
+    for x, y, r, op in MARK:
+        px, py = cx + (x - 100) * LOGO_S, cy + (y - 100) * LOGO_S
+        owner = 0 if x < 60 else (1 if y < 100 else 2)
+        placed.append((owner, px, py, r * LOGO_S * 1.25, op))
+    out, count = [], [0, 0, 0]
+    for owner, px, py, r, op in sorted(placed, key=lambda p: (p[0], p[2])):
+        k = count[owner]
+        count[owner] += 1
+        start = 18.0 + k * 0.22
+        land = start + 0.5
+        ox, oy = PARK[owner]
+        out.append(
+            f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r:.1f}" fill-opacity="{op}" opacity="0">'
+            f'<animateTransform attributeName="transform" type="translate" dur="{CYCLE:g}s" repeatCount="indefinite" '
+            f'values="{ox - px:.0f} {oy - py:.0f};{ox - px:.0f} {oy - py:.0f};0 0;0 0" keyTimes="{kt(0, start, land, CYCLE)}"/>'
+            f'<animate attributeName="opacity" dur="{CYCLE:g}s" repeatCount="indefinite" '
+            f'values="0;0;1;1;0;0" keyTimes="{kt(0, start, start + .1, 22.6, 23.4, CYCLE)}"/></circle>')
+    core_x, core_y = cx + (70.04 - 100) * LOGO_S, cy
+    out.append(
+        f'<circle cx="{core_x:.1f}" cy="{core_y:.1f}" r="{7.48 * LOGO_S:.1f}" fill="{c["green"]}" opacity="0">'
+        f'<animate attributeName="opacity" dur="{CYCLE:g}s" repeatCount="indefinite" '
+        f'values="0;0;1;1;0;0" keyTimes="{kt(0, 21.0, 21.3, 22.6, 23.4, CYCLE)}"/></circle>')
+    return "".join(out)
+
+
+def phase_text(c, text, t_on, t_off):
+    return (f'<text class="m" x="456" y="268" font-size="11" fill="{c["muted"]}" text-anchor="end" '
+            f'letter-spacing=".5" opacity="0">{text}<animate attributeName="opacity" dur="{CYCLE:g}s" '
+            f'repeatCount="indefinite" values="0;0;1;1;0;0" '
+            f'keyTimes="{kt(0, t_on, t_on + .4, t_off - .4, t_off, CYCLE)}"/></text>')
 
 
 def banner(theme, fonts):
     c = THEMES[theme]
     ox, oy = 708, 25
-    end = PATH_A[-1]
-    prev = PATH_A[-2]
-    heading = math.degrees(math.atan2(end[1] - prev[1], end[0] - prev[0]))
-    scan = scan_points(end)
-    dots = "".join(f'<rect x="{x - 1.1:.1f}" y="{y - 1.1:.1f}" width="2.2" height="2.2"/>' for x, y in scan)
     walls = "".join(f"M{a[0]} {a[1]}L{b[0]} {b[1]}" for a, b in WALLS)
-    rays = "".join(f"M{end[0]} {end[1]}L{x:.0f} {y:.0f}" for i, (x, y) in enumerate(scan) if i % 9 == 0)
-    corners = "".join(f'<rect x="{x - 3}" y="{y - 3}" width="6" height="6"/>' for x, y in PATH_A[1:-1])
-    b_end, b_prev = PATH_B[-1], PATH_B[-2]
-    b_heading = math.degrees(math.atan2(b_end[1] - b_prev[1], b_end[0] - b_prev[0]))
+    reveal, bots = [], []
+    for i in range(3):
+        tl, explore_end = timeline(i)
+        d, kp, ktimes = motion_attrs(tl)
+        exp_d = "M" + "L".join(f"{x} {y}" for x, y in EXPLORE[i])
+        reveal.append(
+            f'<path d="{exp_d}" pathLength="1" stroke-dasharray="1 1" fill="none" stroke="#fff" '
+            f'stroke-width="84" stroke-linecap="round" stroke-linejoin="round">'
+            f'<animate attributeName="stroke-dashoffset" dur="{CYCLE:g}s" repeatCount="indefinite" '
+            f'values="1;0;0;1" keyTimes="{kt(0, explore_end, 23.4, CYCLE)}"/></path>')
+        motion = (f'dur="{CYCLE:g}s" repeatCount="indefinite" path="{d}" keyPoints="{kp}" '
+                  f'keyTimes="{ktimes}" calcMode="linear"')
+        bots.append(
+            f'<g><animateMotion {motion} rotate="auto"/><use href="#bot"/></g>'
+            f'<g><animateMotion {motion}/>'
+            f'<text class="m" x="10" y="-11" font-size="10" fill="{c["green_text"]}">r{i + 1}</text></g>')
+    captions = (phase_text(c, "exploring  /  building the map", 0, 7)
+                + phase_text(c, "r1 " + JOBS[0] + "  /  r2 " + JOBS[1] + "  /  r3 " + JOBS[2], 7, 15)
+                + phase_text(c, "meeting up", 15, 18)
+                + phase_text(c, "building together", 18, 23.4))
 
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="t d">
 <title id="t">{NAME}</title>
-<desc id="d">{TITLE}. {LINE}. Top-down drawing of a robot path with LiDAR scan points.</desc>
+<desc id="d">{TITLE}. {LINE}. Animated top-down drawing: three robots explore and map a building, split up for separate jobs, then meet and assemble the DesBot logo together.</desc>
 <style>{fonts}
 .n{{font-family:PAlexandria,Alexandria,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600}}
 .s{{font-family:PPlexSans,'IBM Plex Sans','Segoe UI',Helvetica,Arial,sans-serif}}
 .m{{font-family:PPlexMono,'IBM Plex Mono',SFMono-Regular,Consolas,'Liberation Mono',monospace;font-weight:600}}
-.path{{stroke-dasharray:100;animation:draw 7s cubic-bezier(.45,0,.25,1) .4s both}}
-.late{{animation:fade 1.2s ease-out 6.6s both}}
-.robot{{animation:fade .6s ease-out 7.2s both}}
-@keyframes draw{{from{{stroke-dashoffset:100}}to{{stroke-dashoffset:0}}}}
-@keyframes fade{{from{{opacity:0}}to{{opacity:1}}}}
-@media (prefers-reduced-motion:reduce){{.path,.late,.robot{{animation:none}}}}
 </style>
-<defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="{c['faint']}" stroke-opacity=".06" stroke-width="1"/></pattern></defs>
+<defs>
+<pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="{c['faint']}" stroke-opacity=".06" stroke-width="1"/></pattern>
+<mask id="seen" maskUnits="userSpaceOnUse" x="0" y="0" width="460" height="250">{"".join(reveal)}</mask>
+<g id="bot">
+<path d="M0 0L26 -9A27 27 0 0 1 26 9Z" fill="{c['blue']}" fill-opacity=".22"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></path>
+<rect x="-10" y="-7" width="20" height="14" fill="{c['robot_fill']}" stroke="{c['green']}" stroke-width="1.6"/>
+<path d="M3 -3.5L8 0L3 3.5" fill="none" stroke="{c['green']}" stroke-width="1.6"/>
+</g>
+</defs>
 <rect width="1200" height="300" fill="{c['bg']}"/>
 <rect x="64" y="72" width="40" height="4" fill="{c['green']}"/>
 <text class="n" x="64" y="132" font-size="46" fill="{c['ink']}">{NAME}</text>
@@ -169,16 +253,13 @@ def banner(theme, fonts):
 <text class="m" x="64" y="252" font-size="13" fill="{c['green_text']}" letter-spacing=".5">{TAG}</text>
 <g transform="translate({ox} {oy})">
 <rect x="0" y="0" width="460" height="250" fill="url(#g)"/>
-<path d="{walls}" fill="none" stroke="{c['faint']}" stroke-opacity=".16" stroke-width="2" stroke-linecap="square"/>
-<path d="{rounded_path(PATH_B)}" fill="none" stroke="{c['faint']}" stroke-opacity=".35" stroke-width="1.6" stroke-dasharray="4 5"/>
-<g stroke="{c['faint']}" stroke-opacity=".35">{robot(*b_end, b_heading, c['faint'], c['robot_fill'])}</g>
-<path class="path" pathLength="100" d="{rounded_path(PATH_A)}" fill="none" stroke="{c['green']}" stroke-width="2.4" stroke-linecap="square"/>
-<g class="late" fill="none" stroke="{c['green']}" stroke-width="1.4">{corners}</g>
-<rect x="{PATH_A[0][0] - 4}" y="{PATH_A[0][1] - 4}" width="8" height="8" fill="{c['green']}"/>
-<g class="late"><path d="{rays}" stroke="{c['blue']}" stroke-opacity=".12" stroke-width="1"/>
-<g fill="{c['blue']}">{dots}</g></g>
-<g class="robot">{robot(*end, heading, c['green'], c['robot_fill'])}</g>
-<text class="m" x="456" y="268" font-size="11" fill="{c['muted']}" text-anchor="end" letter-spacing=".5">{CAPTION}</text>
+<g mask="url(#seen)"><animate attributeName="opacity" dur="{CYCLE:g}s" repeatCount="indefinite" values="1;1;.28;.28;0;0" keyTimes="{kt(0, 16, 18, 22.6, 23.4, CYCLE)}"/>
+<path d="{walls}" fill="none" stroke="{c['faint']}" stroke-opacity=".14" stroke-width="2" stroke-linecap="square"/>
+<path d="{map_points()}" fill="{c['blue']}" fill-opacity=".8"/>
+</g>
+<g fill="{c['blue']}">{logo_dots(c)}</g>
+{"".join(bots)}
+{captions}
 </g>
 </svg>
 '''
