@@ -105,22 +105,22 @@ I have 4+ years of engineering experience, 3 of them full-time in robotics. I am
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="https://github.com/a-eldesouky/ros2-env"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=ros2-env&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="ros2-env" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=ros2-env&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br>
-      <sub>One-command ROS 2 Jazzy, Gazebo, Nav2 and slam_toolbox setup with Docker.</sub>
+      <a href="https://github.com/a-eldesouky/home-ems-cpp"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=home-ems-cpp&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="home-ems-cpp" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=home-ems-cpp&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br>
+      <sub>C++17 home energy controller: splits rooftop PV and load between a battery and the grid, with strong unit types and CI.</sub>
     </td>
     <td width="50%" valign="top">
-      <a href="https://github.com/a-eldesouky/Robotics_Documentation"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Robotics_Documentation&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="Robotics_Documentation" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Robotics_Documentation&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br>
-      <sub>Planning and localisation study notes with C++ examples.</sub>
+      <a href="https://github.com/a-eldesouky/ros2-env"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=ros2-env&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="ros2-env" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=ros2-env&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br>
+      <sub>One-command ROS 2 Jazzy, Gazebo, Nav2 and slam_toolbox setup with Docker.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="https://github.com/a-eldesouky/Cplusplus_Notes"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Cplusplus_Notes&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="Cplusplus_Notes" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Cplusplus_Notes&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br><br>
-      <sub>C++ language study notes.</sub>
+      <a href="https://github.com/a-eldesouky/Robotics_Documentation"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Robotics_Documentation&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="Robotics_Documentation" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Robotics_Documentation&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br>
+      <sub>Planning and localisation study notes with C++ examples.</sub>
     </td>
     <td width="50%" valign="top">
-      <a href="https://github.com/a-eldesouky/Graduation_Project_HSRobot"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Graduation_Project_HSRobot&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="Graduation_Project_HSRobot" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Graduation_Project_HSRobot&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br>
-      <sub>Graduation project (grade Excellent): hospital assistant robot. I owned the robot base and indoor navigation.</sub>
+      <a href="https://github.com/a-eldesouky/Cplusplus_Notes"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Cplusplus_Notes&bg_color=16191D&title_color=2FB36E&text_color=EEF0F1&icon_color=4A9EFF&border_color=2A2F35&border_radius=0"><img width="100%" alt="Cplusplus_Notes" src="https://github-readme-stats.vercel.app/api/pin/?username=a-eldesouky&repo=Cplusplus_Notes&bg_color=EEF0F1&title_color=1A7442&text_color=15181C&icon_color=4A9EFF&border_color=C9CED2&border_radius=0"></picture></a><br><br>
+      <sub>C++ language study notes.</sub>
     </td>
   </tr>
 </table>
