@@ -34,7 +34,7 @@ TITLE = "Senior Robotics Software Engineer"
 LINE = "Multi-robot autonomy and navigation on real robots"
 TAG = "ROS 2  /  C++  /  Nav2"
 # Every string the mono font must cover (subsetting only).
-CAPTION = "exploring  /  building the map r1 patrol r2 inspect r3 survey meeting up together"
+CAPTION = "exploring  /  mapping maps merged r1 patrol r2 inspect r3 survey building the H together fetching the pieces hello from the map"
 
 
 # ---------------------------------------------------------------- fonts
@@ -72,13 +72,14 @@ def font_css():
 
 # ---------------------------------------------------------------- scene
 # Local scene coordinates (0..460 x 0..250), translated into the banner.
-# One 24 s loop, all animations share it:
-#   0-9 s   explore: robots leave the dock; the map appears where they drive
-#   ~6-15 s jobs:    r1 patrols, r2 inspects a crate, r3 surveys a corner
-#   15-18 s meet:    robots park around the centre
-#   18-22 s build:   each robot places its share of the DesBot mark's dots
-#   22-24 s reset:   mark and map fade, robots return to the dock
-CYCLE = 24.0
+# One 34 s loop; every animation shares it:
+#   0-7 s     explore: each robot starts in its own corner; walls appear where it drives
+#   7-8.5 s   the three maps merge into one complete map; loose items show up on it
+#   8.5-12.5  jobs: r1 patrols, r2 inspects a crate, r3 surveys a room
+#   12.5-18   build the H together: r1 left |, r3 right |, r2 the crossbar
+#   18-25     fetch: r1 carries the i stem, r2 the dot, r3 one ^ and then the other
+#   25-30     all three stand under "Hi ^^"; then fade and drive back to their corners
+CYCLE = 34.0
 WALLS = [
     ((10, 10), (450, 10)), ((450, 10), (450, 240)), ((450, 240), (10, 240)), ((10, 240), (10, 10)),
     ((160, 10), (160, 140)),           # inner wall, top
@@ -89,36 +90,107 @@ for x, y, w, h in BOXES:
     WALLS += [((x, y), (x + w, y)), ((x + w, y), (x + w, y + h)),
               ((x + w, y + h), (x, y + h)), ((x, y + h), (x, y))]
 
-SPEED = 86.0  # px/s while exploring
+EXPLORE_SPEED = 86.0
 EXPLORE = [
-    [(34, 224), (150, 212), (240, 212), (240, 88), (190, 88), (190, 40)],
-    [(34, 200), (34, 36), (136, 36), (136, 100)],
-    [(60, 230), (282, 230), (282, 96), (330, 96), (430, 96), (430, 222), (330, 222)],
+    [(30, 222), (270, 222), (270, 170), (190, 170), (190, 80), (285, 80)],   # r1: bottom and centre
+    [(30, 30), (140, 30), (140, 110), (40, 110)],                            # r2: top-left room
+    [(430, 222), (330, 222), (330, 140), (430, 140), (430, 30), (330, 30)],  # r3: right room
 ]
-# After exploring: (time, point) waypoints for each robot's own job, the meeting and the return.
-LOGO_C, LOGO_S = (232, 128), 0.75
-PARK = [(170, 128), (292, 70), (292, 188)]
-AFTER = [
-    [(8.0, (190, 120)), (10.0, (190, 40)), (12.0, (190, 120)), (14.0, (190, 40)), (15.0, (190, 40)),
-     (17.0, PARK[0]), (22.6, PARK[0])],
-    [(6.5, (80, 106)), (14.5, (80, 106)), (15.5, (120, 160)), (16.5, (200, 160)), (17.6, PARK[1]),
-     (22.6, PARK[1])],
-    [(10.2, (330, 150)), (11.4, (389, 98)), (14.6, (389, 98)), (15.6, (310, 96)), (16.4, (292, 104)),
-     (17.6, PARK[2]), (22.6, PARK[2])],
-]
+MAP_MERGED = (7.0, 8.5)
+SHOW_END, RESET = 30.0, 31.0
 JOBS = ["patrol", "inspect", "survey"]
 
+# Word geometry: "Hi ^^" on the open floor, bottom-left.
+STEM_C, DOT_C, CARET1_C, CARET2_C = (125, 191.5), (125, 154), (173, 180.5), (219, 180.5)
+# Items lying on the map: (name, pickup point, drop point).
+ITEMS = {"stem": ((100, 70), STEM_C), "dot": ((230, 100), DOT_C),
+         "caret1": ((265, 215), CARET1_C), "caret2": ((265, 160), CARET2_C)}
 
-def timeline(i):
-    pts = EXPLORE[i]
-    t, out = 0.0, [(0.0, pts[0])]
-    for a, b in zip(pts, pts[1:]):
-        t += math.dist(a, b) / SPEED
-        out.append((t, b))
-    explore_end = t
-    out += AFTER[i]
-    out.append((CYCLE, pts[0]))
-    return out, explore_end
+
+class Plan:
+    """Timed waypoints for one robot, plus the strokes it draws and the items it carries."""
+
+    def __init__(self, start):
+        self.pts = [(0.0, start)]
+        self.ink = []      # (t0, t1, a, b)
+        self.carry = {}    # item -> list of (t, p) while carried
+
+    @property
+    def t(self):
+        return self.pts[-1][0]
+
+    @property
+    def p(self):
+        return self.pts[-1][1]
+
+    def go(self, p, speed=90.0, draw=False):
+        a, t0 = self.p, self.t
+        self.pts.append((t0 + math.dist(a, p) / speed, p))
+        if draw:
+            self.ink.append((t0, self.t, a, p))
+        return self
+
+    def wait(self, until):
+        if until > self.t:
+            self.pts.append((until, self.p))
+        return self
+
+    def pause(self, secs):
+        return self.wait(self.t + secs)
+
+    def carry_to(self, item, route, speed=80.0):
+        track = [(self.t, self.p)]
+        for p in route:
+            self.go(p, speed)
+            track.append((self.t, p))
+        self.carry.setdefault(item, []).extend(track)   # a carry can be split into legs
+        return self.pause(0.3)
+
+
+def plans():
+    r = [Plan(EXPLORE[i][0]) for i in range(3)]
+    for plan, route in zip(r, EXPLORE):
+        for p in route[1:]:
+            plan.go(p, EXPLORE_SPEED)
+    r1, r2, r3 = r
+    # Jobs
+    r1.go((190, 80), 50).go((285, 80), 50).go((190, 80), 50).wait(12.6)
+    r2.go((80, 108)).wait(12.0)
+    r3.go((330, 96)).go((389, 96)).wait(11.4)
+    # Gather at the H
+    r1.go((190, 150)).go((50, 213)).wait(15.5)
+    r2.go((40, 108)).go((30, 125)).go((30, 183)).wait(16.9)
+    r3.go((310, 96)).go((290, 100)).go((250, 150)).go((95, 213)).wait(15.5)
+    # Build the H together
+    r1.go((50, 153), 50, draw=True)
+    r3.go((95, 153), 50, draw=True)
+    r2.go((50, 183), 60).go((95, 183), 55, draw=True)
+    # Fetch the rest
+    r1.wait(18.0).go((130, 148)).go((130, 95)).go((100, 70)).pause(0.4)
+    r1.carry_to("stem", [(130, 95), (130, 150), STEM_C])
+    r1.go((125, 228)).go((72, 228))
+    r2.go((140, 183)).go((190, 150)).go((230, 100)).pause(0.4)
+    r2.carry_to("dot", [(190, 150)]).wait(r1.carry["stem"][-1][0] + 0.2)
+    r2.carry_to("dot", [(190, 150), (140, 140), DOT_C])
+    r2.go((110, 165)).go((110, 228)).go((125, 228))
+    r3.wait(17.9).go((150, 140)).go((240, 150)).go((265, 215)).pause(0.4)
+    r3.carry_to("caret1", [CARET1_C])
+    r3.go((265, 160)).pause(0.4)
+    r3.carry_to("caret2", [CARET2_C])
+    r3.go((250, 205)).go((196, 228))
+    for i, plan in enumerate(r):
+        assert plan.t <= SHOW_END, (i, plan.t)
+        plan.wait(SHOW_END).wait(RESET + 0.5).pts.append((CYCLE, EXPLORE[i][0]))
+    return r
+
+
+def kt(*ts):
+    return ";".join(f"{t / CYCLE:.4f}" for t in ts)
+
+
+def anim(attr, values, times):
+    return (f'<animate attributeName="{attr}" dur="{CYCLE:g}s" repeatCount="indefinite" '
+            f'values="{values}" keyTimes="{kt(*times)}"/>')
 
 
 def motion_attrs(tl):
@@ -130,8 +202,7 @@ def motion_attrs(tl):
         d.append(f"L{b[0]} {b[1]}")
     total = cum[-1]
     kp = ";".join(f"{c / total:.4f}" for c in cum)
-    kt = ";".join(f"{t / CYCLE:.4f}" for t, _ in tl)
-    return "".join(d), kp, kt
+    return "".join(d), kp, kt(*(t for t, _ in tl))
 
 
 def map_points(spacing=6.0):
@@ -148,89 +219,86 @@ def map_points(spacing=6.0):
     return "".join(out)
 
 
-# DesBot mark (200x200 source): (x, y, r, opacity). The last dot is the green core.
-MARK = (
-    [(52.79, y, 2.76, .65) for y in (19.49, 42.49, 65.5, 88.5, 111.5, 134.5, 157.51, 180.51)]
-    + [(x, y, 2.3, .685) for x, y in ((74.06, 12.3), (103.11, 22.94), (126.68, 42.78), (142.21, 69.52),
-                                      (147.67, 100), (142.21, 130.48), (126.68, 157.22), (103.11, 177.06),
-                                      (74.06, 187.7))]
-    + [(x, y, 2.76, .86) for x, y in ((70.61, 32.14), (93.04, 40.19), (111.44, 55.72), (123.52, 76.42),
-                                      (127.55, 100), (123.52, 123.58), (111.44, 144.28), (93.04, 159.81),
-                                      (70.61, 167.86))]
-    + [(x, y, 3.22, 1.0) for x, y in ((66.59, 54.57), (81.54, 60.03), (93.9, 70.38), (101.67, 84.19),
-                                      (104.54, 100), (101.67, 115.81), (93.9, 129.62), (81.54, 139.97),
-                                      (66.59, 145.43))]
-)
-
-
-def kt(*ts):
-    return ";".join(f"{t / CYCLE:.4f}" for t in ts)
-
-
-def logo_dots(c):
-    """Each robot carries the dots nearest to it from its parking spot into place."""
-    cx, cy = LOGO_C
-    placed = []
-    for x, y, r, op in MARK:
-        px, py = cx + (x - 100) * LOGO_S, cy + (y - 100) * LOGO_S
-        owner = 0 if x < 60 else (1 if y < 100 else 2)
-        placed.append((owner, px, py, r * LOGO_S * 1.25, op))
-    out, count = [], [0, 0, 0]
-    for owner, px, py, r, op in sorted(placed, key=lambda p: (p[0], p[2])):
-        k = count[owner]
-        count[owner] += 1
-        start = 18.0 + k * 0.22
-        land = start + 0.5
-        ox, oy = PARK[owner]
-        out.append(
-            f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r:.1f}" fill-opacity="{op}" opacity="0">'
-            f'<animateTransform attributeName="transform" type="translate" dur="{CYCLE:g}s" repeatCount="indefinite" '
-            f'values="{ox - px:.0f} {oy - py:.0f};{ox - px:.0f} {oy - py:.0f};0 0;0 0" keyTimes="{kt(0, start, land, CYCLE)}"/>'
-            f'<animate attributeName="opacity" dur="{CYCLE:g}s" repeatCount="indefinite" '
-            f'values="0;0;1;1;0;0" keyTimes="{kt(0, start, start + .1, 22.6, 23.4, CYCLE)}"/></circle>')
-    core_x, core_y = cx + (70.04 - 100) * LOGO_S, cy
-    out.append(
-        f'<circle cx="{core_x:.1f}" cy="{core_y:.1f}" r="{7.48 * LOGO_S:.1f}" fill="{c["green"]}" opacity="0">'
-        f'<animate attributeName="opacity" dur="{CYCLE:g}s" repeatCount="indefinite" '
-        f'values="0;0;1;1;0;0" keyTimes="{kt(0, 21.0, 21.3, 22.6, 23.4, CYCLE)}"/></circle>')
+def dotted(a, b, spacing=5.0, size=3.0):
+    length = math.dist(a, b)
+    out = []
+    for k in range(int(length // spacing) + 1):
+        t = k * spacing / length
+        x, y = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+        out.append(f"M{x - size / 2:.1f} {y - size / 2:.1f}h{size}v{size}h-{size}z")
     return "".join(out)
+
+
+ITEM_SHAPES = {
+    "stem": dotted((0, -21.5), (0, 21.5)),
+    "dot": "M-3 -3h6v6h-6z",
+    "caret1": dotted((-18, 12.5), (0, -12.5)) + dotted((0, -12.5), (18, 12.5)),
+}
+ITEM_SHAPES["caret2"] = ITEM_SHAPES["caret1"]
+
+
+def item_svg(c, name, track):
+    """An item lies at its pickup point, rides along while carried, then stays where it was dropped."""
+    pick, drop = ITEMS[name]
+    pts = [(0.0, pick)] + track + [(RESET - 0.01, drop), (CYCLE, pick)]
+    # keyTimes must strictly increase: nudge equal times apart.
+    clean = []
+    for t, p in pts:
+        if clean and t <= clean[-1][0]:
+            t = clean[-1][0] + 0.001
+        clean.append((t, p))
+    values = ";".join(f"{x:g} {y:g}" for _, (x, y) in clean)
+    return (f'<path d="{ITEM_SHAPES[name]}" fill="{c["green"]}" opacity="0">'
+            f'<animateTransform attributeName="transform" type="translate" dur="{CYCLE:g}s" '
+            f'repeatCount="indefinite" values="{values}" keyTimes="{kt(*(t for t, _ in clean))}"/>'
+            f'{anim("opacity", "0;0;1;1;0;0", (0, MAP_MERGED[0] + .5, MAP_MERGED[1], SHOW_END, RESET, CYCLE))}'
+            f'</path>')
 
 
 def phase_text(c, text, t_on, t_off):
     return (f'<text class="m" x="456" y="268" font-size="11" fill="{c["muted"]}" text-anchor="end" '
-            f'letter-spacing=".5" opacity="0">{text}<animate attributeName="opacity" dur="{CYCLE:g}s" '
-            f'repeatCount="indefinite" values="0;0;1;1;0;0" '
-            f'keyTimes="{kt(0, t_on, t_on + .4, t_off - .4, t_off, CYCLE)}"/></text>')
+            f'letter-spacing=".5" opacity="0">{text}'
+            f'{anim("opacity", "0;0;1;1;0;0", (0, t_on, t_on + .3, t_off - .3, t_off, CYCLE))}</text>')
 
 
 def banner(theme, fonts):
     c = THEMES[theme]
     ox, oy = 708, 25
     walls = "".join(f"M{a[0]} {a[1]}L{b[0]} {b[1]}" for a, b in WALLS)
-    reveal, bots = [], []
-    for i in range(3):
-        tl, explore_end = timeline(i)
-        d, kp, ktimes = motion_attrs(tl)
+    reveal, ink, bots, items, ink_dots = [], [], [], [], []
+    for i, plan in enumerate(plans()):
+        explore_end = plan.pts[len(EXPLORE[i]) - 1][0]
         exp_d = "M" + "L".join(f"{x} {y}" for x, y in EXPLORE[i])
         reveal.append(
             f'<path d="{exp_d}" pathLength="1" stroke-dasharray="1 1" fill="none" stroke="#fff" '
-            f'stroke-width="84" stroke-linecap="round" stroke-linejoin="round">'
-            f'<animate attributeName="stroke-dashoffset" dur="{CYCLE:g}s" repeatCount="indefinite" '
-            f'values="1;0;0;1" keyTimes="{kt(0, explore_end, 23.4, CYCLE)}"/></path>')
+            f'stroke-width="110" stroke-linecap="round" stroke-linejoin="round">'
+            f'{anim("stroke-dashoffset", "1;0;0;1", (0, explore_end, RESET, CYCLE))}</path>')
+        for t0, t1, a, b in plan.ink:
+            ink_dots.append(dotted(a, b))
+            ink.append(
+                f'<path d="M{a[0]} {a[1]}L{b[0]} {b[1]}" pathLength="1" stroke-dasharray="1 1" '
+                f'stroke="#fff" stroke-width="8" fill="none">'
+                f'{anim("stroke-dashoffset", "1;1;0;0;1", (0, t0, t1, RESET, CYCLE))}</path>')
+        for name, track in plan.carry.items():
+            items.append(item_svg(c, name, track))
+        d, kp, ktimes = motion_attrs(plan.pts)
         motion = (f'dur="{CYCLE:g}s" repeatCount="indefinite" path="{d}" keyPoints="{kp}" '
                   f'keyTimes="{ktimes}" calcMode="linear"')
         bots.append(
             f'<g><animateMotion {motion} rotate="auto"/><use href="#bot"/></g>'
             f'<g><animateMotion {motion}/>'
             f'<text class="m" x="10" y="-11" font-size="10" fill="{c["green_text"]}">r{i + 1}</text></g>')
-    captions = (phase_text(c, "exploring  /  building the map", 0, 7)
-                + phase_text(c, "r1 " + JOBS[0] + "  /  r2 " + JOBS[1] + "  /  r3 " + JOBS[2], 7, 15)
-                + phase_text(c, "meeting up", 15, 18)
-                + phase_text(c, "building together", 18, 23.4))
+    m0, m1 = MAP_MERGED
+    captions = (phase_text(c, "exploring  /  mapping", 0, m0)
+                + phase_text(c, "maps merged", m0, m1)
+                + phase_text(c, "r1 " + JOBS[0] + "  /  r2 " + JOBS[1] + "  /  r3 " + JOBS[2], m1, 12.5)
+                + phase_text(c, "building the H together", 12.5, 18.0)
+                + phase_text(c, "fetching the pieces", 18.0, 25.0)
+                + phase_text(c, "hello from the map", 25.0, SHOW_END))
 
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="t d">
 <title id="t">{NAME}</title>
-<desc id="d">{TITLE}. {LINE}. Animated top-down drawing: three robots explore and map a building, split up for separate jobs, then meet and assemble the DesBot logo together.</desc>
+<desc id="d">{TITLE}. {LINE}. Animated top-down drawing: three robots start in different corners and merge one map, split up for separate jobs, build the letter H together, fetch the remaining pieces from around the map, and line up under the words Hi ^^.</desc>
 <style>{fonts}
 .n{{font-family:PAlexandria,Alexandria,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600}}
 .s{{font-family:PPlexSans,'IBM Plex Sans','Segoe UI',Helvetica,Arial,sans-serif}}
@@ -238,7 +306,8 @@ def banner(theme, fonts):
 </style>
 <defs>
 <pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="{c['faint']}" stroke-opacity=".06" stroke-width="1"/></pattern>
-<mask id="seen" maskUnits="userSpaceOnUse" x="0" y="0" width="460" height="250">{"".join(reveal)}</mask>
+<mask id="seen" maskUnits="userSpaceOnUse" x="0" y="0" width="460" height="250">{"".join(reveal)}<rect width="460" height="250" fill="#fff" opacity="0">{anim("opacity", "0;0;1;1;0;0", (0, m0, m1, RESET, RESET + .01, CYCLE))}</rect></mask>
+<mask id="ink" maskUnits="userSpaceOnUse" x="0" y="0" width="460" height="250">{"".join(ink)}</mask>
 <g id="bot">
 <path d="M0 0L26 -9A27 27 0 0 1 26 9Z" fill="{c['blue']}" fill-opacity=".22"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></path>
 <rect x="-10" y="-7" width="20" height="14" fill="{c['robot_fill']}" stroke="{c['green']}" stroke-width="1.6"/>
@@ -253,11 +322,12 @@ def banner(theme, fonts):
 <text class="m" x="64" y="252" font-size="13" fill="{c['green_text']}" letter-spacing=".5">{TAG}</text>
 <g transform="translate({ox} {oy})">
 <rect x="0" y="0" width="460" height="250" fill="url(#g)"/>
-<g mask="url(#seen)"><animate attributeName="opacity" dur="{CYCLE:g}s" repeatCount="indefinite" values="1;1;.28;.28;0;0" keyTimes="{kt(0, 16, 18, 22.6, 23.4, CYCLE)}"/>
+<g mask="url(#seen)">{anim("opacity", "1;1;.3;.3;0;0", (0, 13.0, 15.0, SHOW_END, RESET, CYCLE))}
 <path d="{walls}" fill="none" stroke="{c['faint']}" stroke-opacity=".14" stroke-width="2" stroke-linecap="square"/>
 <path d="{map_points()}" fill="{c['blue']}" fill-opacity=".8"/>
 </g>
-<g fill="{c['blue']}">{logo_dots(c)}</g>
+<g mask="url(#ink)">{anim("opacity", "1;1;0;0", (0, SHOW_END, RESET, CYCLE))}<path d="{"".join(ink_dots)}" fill="{c['green']}"/></g>
+{"".join(items)}
 {"".join(bots)}
 {captions}
 </g>
